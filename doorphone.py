@@ -30,8 +30,43 @@ current_call = None
 config = ConfigParser.ConfigParser()
 config.readfp(open('doorphone.cfg'))
 
+lock_pin = config.get("general", "lock_pin")
+ring_pin = config.get("general", "ring_pin")
+
 def log_cb(level, str, len):
     print str,
+
+def export_pin(pin):
+    try:
+        f = open("/sys/class/gpio/export","w")
+        f.write(str(pin))
+        f.close()
+    except IOError:
+        print "GPIO %s already Exists, so skipping export gpio" % (str(pin), )
+
+def set_pin_direction(pin_no, pin_direction):
+    gpiopin = "gpio%s" % (str(pin_no), )
+    pin = open("/sys/class/gpio/"+gpiopin+"/direction","w")
+    pin.write(pin_direction)
+    pin.close()
+
+def write_pin(pin_no, pin_value):
+    gpiopin = "gpio%s" % (str(pin_no), )
+    pin = open("/sys/class/gpio/"+gpiopin+"/value","w")
+    if pin_value == 1:
+      pin.write("1")
+    else:
+      pin.write("0")
+    pin.close()
+
+def open_lock():
+    lock_hold = config.getint("general", "lock_hold")
+    print "Opening lock (pin ",lock_pin,") for", lock_hold, "sec"
+    write_pin(lock_pin, 1)
+    time.sleep(lock_hold)
+    write_pin(lock_pin, 0)
+    print "Closing lock"
+
 class MyAccountCallback(pj.AccountCallback):
     sem = None
     def __init__(self, account):
@@ -87,6 +122,7 @@ class MyCallCallback(pj.CallCallback):
 
     def on_dtmf_digit(self, digits):
         print "on_dtmf_digit (%s)",str(digits)
+        open_lock()
 
 # Function to make call
 def make_call(uri):
@@ -96,7 +132,13 @@ def make_call(uri):
     except pj.Error, e:
         print "Exception: " + str(e)
         return None
-       
+
+export_pin(lock_pin)
+set_pin_direction(lock_pin, "out")
+write_pin(lock_pin, 0)
+
+export_pin(ring_pin)
+set_pin_direction(ring_pin, "in")
 
 lib = pj.Lib()
 try:
