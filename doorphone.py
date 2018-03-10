@@ -25,13 +25,15 @@ import ConfigParser
 import pjsua as pj
 import threading
 import time
+import os
+import select
 
 current_call = None
 config = ConfigParser.ConfigParser()
 config.readfp(open('doorphone.cfg'))
 
-lock_pin = config.get("general", "lock_pin")
-ring_pin = config.get("general", "ring_pin")
+lock_pin = config.getint("general", "lock_pin")
+ring_pin = config.getint("general", "ring_pin")
 
 def log_cb(level, str, len):
     print str,
@@ -140,6 +142,17 @@ write_pin(lock_pin, 0)
 export_pin(ring_pin)
 set_pin_direction(ring_pin, "in")
 
+with open("/sys/class/gpio/gpio%d/edge" % ring_pin, "w") as f_edge:
+    f_edge.write("none\n")
+with open("/sys/class/gpio/gpio%d/edge" % ring_pin, "w") as f_edge:
+    f_edge.write("falling\n")
+
+ring_fd = os.open("/sys/class/gpio/gpio%d/value" % ring_pin, os.O_RDONLY)
+ring_p = select.epoll()
+ring_p.register(ring_fd, select.EPOLLIN | select.EPOLLET | select.EPOLLPRI)
+ring_p.poll(-1)
+print "Ring poll set"
+
 lib = pj.Lib()
 try:
     media_cfg=pj.MediaConfig()
@@ -164,23 +177,30 @@ try:
     print "\n"
     print "Registration complete, status=", acc.info().reg_status, \
           "(" + acc.info().reg_reason + ")"
+    ring_pulses = 0
     while True:
-        print "Menu:  m=make call, h=hangup call, a=answer call, q=quit"
-        input = sys.stdin.readline().rstrip("\r\n")
-        if input == "m":
-            if current_call:
-                print "Already have another call"
-                continue
-            print "Enter destination URI to call: ", 
-            input = "sip:100@185.98.208.25"
-            input = "sip:0903588936@185.98.208.25"
-            if input == "":
-                continue
-            lck = lib.auto_lock()
-            current_call = make_call(input)
-            del lck
-        elif input == "q":
-            break
+        events = ring_p.poll(-1)
+        #for _ in range(2):
+        #    events = ring_p.poll(-1)
+    
+        if events:
+            ring_pulses += 1
+            #print "ring pulses", ring_pulses
+            # Rewind
+            try:
+                os.lseek(ring_fd, 0, os.SEEK_SET)
+            except OSError as e:
+                raise GPIOError(e.errno, "Rewinding GPIO: " + e.strerror)
+
+            if ring_pulses > 30:
+                ring_pulses = 0
+                if current_call:
+                    print "Already have another call"
+                    continue
+                calee = "sip:" + config.get("general", "calee") + "@" + config.get("account", "server")
+                lck = lib.auto_lock()
+                current_call = make_call(calee)
+                del lck
 
     lib.destroy()
     lib = None
