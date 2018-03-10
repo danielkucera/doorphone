@@ -105,20 +105,11 @@ try:
     #media_cfg.ptime = 10
     #media_cfg.ec_tail_len = 0 #disable echo cancellation
     media_cfg.no_vad = True #disable VAD
-    lib.init(log_cfg = pj.LogConfig(level=4, callback=log_cb), media_cfg=media_cfg)
-    snd_dev = lib.get_snd_dev()
-    sdi_list = lib.enum_snd_dev()
-#    lib.set_codec_priority("G722", 0)
-#    lib.set_codec_priority("PCMU", 130)
-    codec_list = lib.enum_codecs()
-    for sdi in sdi_list:
-        print sdi.name
-    for codec in codec_list:
-        print codec.name, codec.priority
-    print snd_dev
-    #lib.set_snd_dev(-1,-2)
-    lib.set_snd_dev(4,4)
-#    lib.set_codec_priority("PCMA", 100)
+
+    log_cfg = pj.LogConfig(level=config.getint("general", "loglevel"), callback=log_cb)
+
+    lib.init(log_cfg = log_cfg, media_cfg=media_cfg)
+    
 #    lib.create_transport(pj.TransportType.TCP, pj.TransportConfig(5080))
     lib.create_transport(pj.TransportType.UDP, pj.TransportConfig(5080))
     lib.start()
