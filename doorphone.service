@@ -1,0 +1,15 @@
+[Unit]
+Description=Door phone service
+After=network.target
+
+[Service]
+ExecStart=/root/doorphone/doorphone.py
+Restart=always
+RestartSec=2
+User=root
+Group=root
+WorkingDirectory=/root/doorphone/
+Environment=PATH=/bin
+
+[Install]
+WantedBy=multi-user.target

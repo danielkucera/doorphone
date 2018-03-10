@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 # $Id$
 #
 # SIP account and registration sample. In this sample, the program
